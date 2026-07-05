@@ -546,3 +546,25 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 - After pm clear: re-add via **Sources → Browse Catalog → tap each "+ Add" button**
 - Browse Catalog button requires `uiautomator dump` to get exact coords — visual tapping doesn't work reliably
 - Bottom nav coords: Library(100,2232), History(320,2232), Search(540,2232), Explore(760,2232), Sources(980,2232)
+
+## Changes (Jul 6 session 2) — Git branches + v1.0.0 release
+
+### Git branch structure
+| Branch | Purpose |
+|--------|---------|
+| `main` | Stable releases |
+| `working` | Full working version |
+| `feature` | New features |
+| `hotfix` | Emergency fixes |
+
+### v1.0.0 release
+- Tagged `v1.0.0` on `main` commit `219978c`
+- APK: `app-debug.apk` attached to GitHub release
+- URL: https://github.com/ASHBORN099/BOOKYAPA/releases/tag/v1.0.0
+- All 3 sources working (RoyalRoad, ScribbleHub, Gutenberg)
+- Cloudflare Turnstile bypass functional
+
+### GitHub CLI
+- `gh` installed at `C:\Program Files\GitHub CLI\gh.exe` (not in PATH)
+- Authenticated as ASHBORN099 via device code flow
+- Usage: `& "C:\Program Files\GitHub CLI\gh.exe" <command>`
