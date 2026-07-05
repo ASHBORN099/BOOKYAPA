@@ -1,0 +1,78 @@
+[
+  {
+    "id": "royalroad",
+    "name": "RoyalRoad",
+    "baseUrl": "https://www.royalroad.com",
+    "lang": "en",
+    "description": "Original web novels and fiction. Browse popular and trending stories.",
+    "config": {
+      "searchUrlPattern": "/fictions/search?title={query}",
+      "searchResultContainer": "div.fiction-list-item",
+      "searchResultTitle": "h2.fiction-title a",
+      "searchResultLink": "h2.fiction-title a",
+      "searchResultCover": "figure img",
+      "bookTitle": "h1",
+      "bookAuthor": "a[href*=\"/profile/\"]",
+      "bookCover": ".fic-header img",
+      "bookDescription": ".description",
+      "chapterListItem": "tr.chapter-row",
+      "chapterTitle": "td:first-child a",
+      "chapterLink": "td:first-child a",
+      "chapterContent": ".chapter-content",
+      "chapterNextPage": "",
+      "exploreUrlPattern": "/fictions/best-rated"
+    }
+  },
+  {
+    "id": "scribblehub",
+    "name": "ScribbleHub",
+    "baseUrl": "https://www.scribblehub.com",
+    "lang": "en",
+    "description": "Original web fiction platform with series across many genres.",
+    "config": {
+      "searchUrlPattern": "/?s={query}&post_type=fictionposts",
+      "searchResultContainer": "div.search_main_box",
+      "searchResultTitle": "div.search_title a",
+      "searchResultLink": "div.search_title a",
+      "searchResultCover": "div.search_img img",
+      "bookTitle": "div.fic_title",
+      "bookAuthor": "span.auth_name_fic",
+      "bookCover": "div.fic_image img",
+      "bookDescription": "div.wp-story-content",
+      "chapterListItem": "li.toc_w",
+      "chapterTitle": "a.toc_a",
+      "chapterLink": "a.toc_a",
+      "chapterContent": "div.chp_raw",
+      "chapterNextPage": "",
+      "exploreUrlPattern": "/series-ranking/",
+      "exploreUrlPatternFallback": "/latest-series/",
+      "chapterListAjaxUrl": "https://www.scribblehub.com/wp-admin/admin-ajax.php",
+      "chapterListAjaxBody": "action=wi_getreleases_pagination&pagenum=-1&mypostid={id}"
+    }
+  },
+  {
+    "id": "gutenberg",
+    "name": "Project Gutenberg",
+    "baseUrl": "https://www.gutenberg.org",
+    "lang": "en",
+    "description": "Over 70,000 free public domain eBooks. Classical literature and reference works.",
+    "config": {
+      "searchUrlPattern": "/ebooks/search/?query={query}",
+      "searchResultContainer": "li.booklink",
+      "searchResultTitle": "span.title",
+      "searchResultLink": "a[href*=\"/ebooks/\"]",
+      "searchResultCover": "img.cover-thumb",
+      "bookTitle": "td[itemprop=headline]",
+      "bookAuthor": "table.bibrec a",
+      "bookCover": "#cover img",
+      "bookDescription": "",
+      "chapterListItem": "",
+      "chapterTitle": "",
+      "chapterLink": "",
+      "chapterContent": "body",
+      "chapterNextPage": "",
+      "exploreUrlPattern": "/ebooks/search/?sort_order=downloads",
+      "bookContentUrlPattern": "https://www.gutenberg.org/cache/epub/{id}/pg{id}-images.html"
+    }
+  }
+]
