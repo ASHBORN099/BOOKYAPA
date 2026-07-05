@@ -50,7 +50,7 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 
 ### ScribbleHub & Gutenberg now working
 - **ScribbleHub**: `/series-ranking/` returns status 200, 4 books displayed (Rebirth of the Nephilim, Collide Gamer, etc.). Root cause was stale DB config using old URL.
-- **Gutenberg**: `/ebooks/search/?sort_order=downloads` returns status 200, 6 books displayed (Moby Dick, Pride and Prejudice, etc.). HTML has anti-scraping comment `<!-- DON'T USE THIS PAGE FOR SCRAPING -->` but book data below it still parses.
+- **Gutenberg**: `/ebooks/search/→sort_order=downloads` returns status 200, 6 books displayed (Moby Dick, Pride and Prejudice, etc.). HTML has anti-scraping comment `<!-- DON'T USE THIS PAGE FOR SCRAPING -->` but book data below it still parses.
 - **FictionPress**: Removed from catalog — `/browse/` returns 404 (endpoint deprecated).
 
 ### Other changes
@@ -195,7 +195,7 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 - From History tab → tapped Mother of Learning → **opened directly to reader at restored page** ✅
 
 ### History tab: direct reader open
-- Changed `HistoryScreen.kt` to navigate directly to `Screen.Reader.createRoute(book.id, book.lastChapterOrder ?: 0)` instead of `Screen.BookDetail.createRoute(book.id)`
+- Changed `HistoryScreen.kt` to navigate directly to `Screen.Reader.createRoute(book.id, book.lastChapterOrder →: 0)` instead of `Screen.BookDetail.createRoute(book.id)`
 - Reader already handles page restore via `lastScrollPosition` in `ChapterEntity`
 
 ### Files changed
@@ -209,7 +209,7 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 ## Changes (Jul 5) — Phase 1 + Reader improvements
 
 ### Gutenberg author cleanup
-- Added regex `,\s*\d{4}(-\d{4})?\s*$` to `HtmlParser.kt:67` to strip lifespan dates from author names
+- Added regex `,\s*\d{4}(-\d{4})→\s*$` to `HtmlParser.kt:67` to strip lifespan dates from author names
 - "Melville, Herman, 1819-1891" → "Melville, Herman"
 
 ### Book status changer
@@ -278,8 +278,8 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 ### Fix: No delete confirmation dialogs
 - All three screens (Library, History, Sources) deleted immediately on tap with zero confirmation
 - Added `AlertDialog` confirmation before every delete action
-- Library: "Remove from Library?" / History: "Clear History?" / Sources: "Delete Source?"
-- Pattern: `var showDeleteDialog by remember { mutableStateOf<BookEntity?>(null) }` + AlertDialog
+- Library: "Remove from Library→" / History: "Clear History→" / Sources: "Delete Source→"
+- Pattern: `var showDeleteDialog by remember { mutableStateOf<BookEntity→>(null) }` + AlertDialog
 
 ### Fix: `Converters.toBookStatus()` crash
 - Root cause: `BookStatus.valueOf(value)` threw `IllegalArgumentException` on unrecognized strings
@@ -378,9 +378,9 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 - Launched via `ActivityResultContracts.StartActivityForResult` from screens
 
 ### ViewModel changes (ExploreViewModel, SearchViewModel, BookDetailViewModel)
-- Added `var turnstileUrl by mutableStateOf<String?>(null)` to UiState
+- Added `var turnstileUrl by mutableStateOf<String→>(null)` to UiState
 - Added `fun retryAfterTurnstile()` — clears `turnstileUrl`, re-fetches data
-- Added `fun findTurnstileException(throwable: Throwable?): TurnstileBypassException?` — recursively searches exception cause chain
+- Added `fun findTurnstileException(throwable: Throwable→): TurnstileBypassException→` — recursively searches exception cause chain
 
 ### UI changes (ExploreScreen, SearchScreen, BookDetailScreen)
 - Replaced "Open in Chrome" dialog with "Solve in App" dialog
@@ -517,7 +517,7 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 
 ### Bug: HistoryScreen.kt brace nesting broken
 - **Reported**: "clearing the progress in the history tab doesn't change anything"
-- **Root cause**: The dialogs (`showDeleteDialog?.let` and `showClearAllDialog`) were placed inside the `when` block's `else` branch due to mismatched braces during the edit
+- **Root cause**: The dialogs (`showDeleteDialog→.let` and `showClearAllDialog`) were placed inside the `when` block's `else` branch due to mismatched braces during the edit
 - **Evidence**: Lines 189-190 have extra closing braces (`    }` and `}`). Line 142's `}` closes LazyColumn but at wrong indentation (8 spaces instead of 16)
 - **Fix**: Move dialogs outside the `when` block, remove extra braces on lines 189-190, fix indentation
 - **File**: `HistoryScreen.kt:142-190`
@@ -535,6 +535,14 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
   6. Remove `ThemeManager.getFontSize()` / `setFontSize()` (or keep as default for new books)
   7. DB version bump — `fallbackToDestructiveMigration()` handles it (same as `pm clear`)
 - **Files**: `BookEntity.kt`, `BookDao.kt`, `BookRepository.kt`, `ReaderViewModel.kt`, `ThemeManager.kt`
+
+### Feature: Continuous chapter swiping
+- **Problem**: When user reaches the last page of a chapter, HorizontalPager stops. Must close reader and manually open next chapter.
+- **Solution**: Detect overscroll at page boundaries via `NestedScrollConnection` on HorizontalPager. Unhandled left scroll delta at last page → `viewModel.nextChapter()`. Unhandled right scroll delta at first page → `viewModel.previousChapter()`.
+- **Visual indicator**: "Next Chapter →" at bottom of last page, "← Previous Chapter" at top of first page (non-first chapters). Subtle `onSurfaceVariant` at 50% alpha.
+- **Edge cases**: Last chapter + last page = no action. First chapter + first page = no action. Loading/error states = no action.
+- **Files**: `ReaderScreen.kt` (nested scroll connection + indicators), `ReaderViewModel.kt` (add `isLastChapter`/`isFirstChapter` to UiState)
+- **Full plan**: `.opencode/plans/continuous-chapter-swiping.md`
 
 ### Other planned items
 1. Theme colors across screens (141 hardcoded colors → MaterialTheme.colorScheme)
