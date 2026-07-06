@@ -111,7 +111,7 @@ class HtmlParser @Inject constructor() {
             chapters.add(ChapterItem(title = title, url = url, order = index))
         }
 
-        return chapters
+        return chapters.reversed()
     }
 
     fun parseChapterContent(html: String, config: SourceConfig): String {

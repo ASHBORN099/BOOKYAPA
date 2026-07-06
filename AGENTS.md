@@ -515,35 +515,6 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 
 ## To do next session
 
-### Bug: HistoryScreen.kt brace nesting broken
-- **Reported**: "clearing the progress in the history tab doesn't change anything"
-- **Root cause**: The dialogs (`showDeleteDialog→.let` and `showClearAllDialog`) were placed inside the `when` block's `else` branch due to mismatched braces during the edit
-- **Evidence**: Lines 189-190 have extra closing braces (`    }` and `}`). Line 142's `}` closes LazyColumn but at wrong indentation (8 spaces instead of 16)
-- **Fix**: Move dialogs outside the `when` block, remove extra braces on lines 189-190, fix indentation
-- **File**: `HistoryScreen.kt:142-190`
-- **Verify**: Tap delete icon on a history entry → dialog should appear → confirm → book should disappear from list
-
-### Feature: Per-book font size (not global)
-- **Reported**: "Font size persistence saves it for all the books i read instead of separate settings for separate books"
-- **Current**: Global `reader_font_size` in DataStore via `ThemeManager` — same for all books
-- **Plan**:
-  1. Add `val fontSize: Int = 0` to `BookEntity` (0 = use default 16)
-  2. Add `@Query("UPDATE books SET fontSize = :fontSize WHERE id = :bookId")` to `BookDao`
-  3. Add `suspend fun updateBookFontSize(bookId: Long, fontSize: Int)` to `BookRepository`
-  4. `ReaderViewModel.init`: load `book.fontSize` instead of `ThemeManager.getFontSize()`. If 0, use 16.
-  5. `ReaderViewModel.updateFontSize()`: call `bookRepository.updateBookFontSize(bookId, newSize)` instead of `ThemeManager.setFontSize()`
-  6. Remove `ThemeManager.getFontSize()` / `setFontSize()` (or keep as default for new books)
-  7. DB version bump — `fallbackToDestructiveMigration()` handles it (same as `pm clear`)
-- **Files**: `BookEntity.kt`, `BookDao.kt`, `BookRepository.kt`, `ReaderViewModel.kt`, `ThemeManager.kt`
-
-### Feature: Continuous chapter swiping
-- **Problem**: When user reaches the last page of a chapter, HorizontalPager stops. Must close reader and manually open next chapter.
-- **Solution**: Detect overscroll at page boundaries via `NestedScrollConnection` on HorizontalPager. Unhandled left scroll delta at last page → `viewModel.nextChapter()`. Unhandled right scroll delta at first page → `viewModel.previousChapter()`.
-- **Visual indicator**: "Next Chapter →" at bottom of last page, "← Previous Chapter" at top of first page (non-first chapters). Subtle `onSurfaceVariant` at 50% alpha.
-- **Edge cases**: Last chapter + last page = no action. First chapter + first page = no action. Loading/error states = no action.
-- **Files**: `ReaderScreen.kt` (nested scroll connection + indicators), `ReaderViewModel.kt` (add `isLastChapter`/`isFirstChapter` to UiState)
-- **Full plan**: `.opencode/plans/continuous-chapter-swiping.md`
-
 ### Other planned items
 1. Theme colors across screens (141 hardcoded colors → MaterialTheme.colorScheme)
 2. ScribbleHub TOC pagination (only page 1 shown; full chapter list requires AJAX pagination with page numbers)
@@ -554,6 +525,25 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 - After pm clear: re-add via **Sources → Browse Catalog → tap each "+ Add" button**
 - Browse Catalog button requires `uiautomator dump` to get exact coords — visual tapping doesn't work reliably
 - Bottom nav coords: Library(100,2232), History(320,2232), Search(540,2232), Explore(760,2232), Sources(980,2232)
+
+## Changes (Jul 6 session 3) — Continuous chapter swiping
+
+### Continuous chapter swiping
+- **Problem**: When user reaches the last page of a chapter, HorizontalPager stops. Must close reader and manually open next chapter.
+- **Solution**: `NestedScrollConnection.onPostScroll` on `BoxWithConstraints` wrapping the `HorizontalPager`. Detects overscroll at page boundaries:
+  - `available.x < 0` at last page → `viewModel.nextChapter()`
+  - `available.x > 0` at first page (non-first chapter) → `viewModel.previousChapter()`
+- **Visual indicators**: "Next Chapter →" at bottom of last page, "← Previous Chapter" at top of first page. `onSurfaceVariant` at 50% alpha, 14sp.
+- **State sync**: `LaunchedEffect` updates mutable state (`latestPageCount`, `latestPageIndex`, `latestChapterIndex`) from inside `BoxWithConstraints` content for use in the `NestedScrollConnection` callback.
+- **No ViewModel changes**: `nextChapter()` and `previousChapter()` already exist in `ReaderViewModel.kt:188-193`. Edge cases (last/first chapter bounds) handled by `navigateToChapter()`.
+- **New dependency**: Added `compose-foundation` to `libs.versions.toml` and `build.gradle.kts` (required for `Modifier.nestedScroll()`).
+
+### Files changed
+| File | Change |
+|------|--------|
+| `ReaderScreen.kt` | Added `nestedScroll` import, mutable state vars for page/chapter tracking, `NestedScrollConnection` with `onPostScroll`, `.nestedScroll(overscrollConnection)` on `BoxWithConstraints`, `LaunchedEffect` for state sync, visual indicators in `HorizontalPager` page boxes |
+| `gradle/libs.versions.toml` | Added `compose-foundation` library entry |
+| `app/build.gradle.kts` | Added `implementation(libs.compose.foundation)` |
 
 ## Changes (Jul 6 session 2) — Git branches + v1.0.0 release
 
@@ -576,3 +566,34 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 - `gh` installed at `C:\Program Files\GitHub CLI\gh.exe` (not in PATH)
 - Authenticated as ASHBORN099 via device code flow
 - Usage: `& "C:\Program Files\GitHub CLI\gh.exe" <command>`
+
+## Changes (Jul 6 session 4) — Chapter swiping fix + visual improvements
+
+### Continuous chapter swiping — FIXED
+- **Root cause 1**: `rememberPagerState` never recreated on chapter change — old page index persisted, landing on wrong transition page
+- **Root cause 2**: `LaunchedEffect(displayPages)` prematurely called `setPages()` with stale content during chapter transitions, causing wrong pager position
+- **Root cause 3**: `navigateToChapter()` didn't reset `currentPage` — old chapter's page index was used as initial page for new chapter, causing wrong transition page display (e.g. "Next Chapter →" where "← Previous Chapter" should be)
+- **Fix A**: Wrapped `rememberPagerState` in `key(state.currentChapterIndex)` — forces pager recreation on chapter change
+- **Fix B**: Changed `LaunchedEffect(displayPages)` to `LaunchedEffect(state.content, state.fontSize, maxWidthPx, maxHeightPx)` — prevents premature `setPages()` during transitions
+- **Fix C**: Added `currentPage = 0` in `navigateToChapter()` state update — ensures pager starts at first content page of new chapter
+
+### Chapter list reversed in BookDetail
+- Root cause: Chapters displayed first→last by default, but readers typically want to see latest chapters first
+- Changed `chaptersReversed` default from `false` to `true` in `BookDetailViewModel.kt`
+- Added `.reversed()` to initial chapter list load — shows latest chapters at top for easier access
+
+### Chapter ordering fixed in parser
+- Root cause: Web novel sites (RoyalRoad, ScribbleHub) list chapters newest-first in HTML. Parser assigned `order = index` based on DOM order, so `ORDER BY order ASC` in DB showed latest chapter first instead of Chapter 1
+- Added `return chapters.reversed()` in `HtmlParser.parseChapterList()` — ensures `order=0` always maps to the first chapter regardless of HTML listing order
+- **Note**: Existing books in Room DB have stale chapter order — must remove and re-add to library for fix to take effect
+
+### Files changed
+| File | Change |
+|------|--------|
+| `ReaderScreen.kt` | `key(state.currentChapterIndex)` for pager recreation, `LaunchedEffect` content-key fix, debug logs, `key` import added |
+| `ReaderViewModel.kt` | `currentPage = 0` reset in `navigateToChapter()` |
+| `HtmlParser.kt` | `return chapters.reversed()` in `parseChapterList()` |
+| `BookDetailViewModel.kt` | `chaptersReversed = true` default, `.reversed()` on initial chapter load |
+
+### Debug logging
+- Added `Log.d("Reader", ...)` to transition detection in `ReaderScreen.kt` — use `adb logcat -s Reader` to verify chapter swiping on device

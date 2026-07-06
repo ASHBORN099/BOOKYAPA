@@ -64,6 +64,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -248,37 +249,74 @@ fun ReaderScreen(
                                     )
                                 }
 
-                                LaunchedEffect(computedPages) {
+                                val hasNextChapter = state.currentChapterIndex < state.chapters.lastIndex
+                                val hasPrevChapter = state.currentChapterIndex > 0
+                                val prevChapterTitle = if (hasPrevChapter) state.chapters.getOrNull(state.currentChapterIndex - 1)?.title else null
+                                val nextChapterTitle = if (hasNextChapter) state.chapters.getOrNull(state.currentChapterIndex + 1)?.title else null
+
+                                val displayPages = remember(computedPages, hasNextChapter, hasPrevChapter) {
+                                    buildList {
+                                        if (hasPrevChapter) add("")
+                                        addAll(computedPages)
+                                        if (hasNextChapter) add("")
+                                    }
+                                }
+
+                                val contentPageOffset = if (hasPrevChapter) 1 else 0
+                                val realPageCount = computedPages.size
+
+                                LaunchedEffect(state.content, state.fontSize, maxWidthPx, maxHeightPx) {
                                     pages = computedPages
                                     viewModel.setPages(computedPages)
                                 }
 
-                                val ps = rememberPagerState(
-                                    initialPage = state.currentPage,
-                                    pageCount = { computedPages.size },
-                                )
+                                val initialPagerPage = state.currentPage + contentPageOffset
+                                val ps = key(state.currentChapterIndex) {
+                                    rememberPagerState(
+                                        initialPage = initialPagerPage.coerceIn(0, (displayPages.size - 1).coerceAtLeast(0)),
+                                        pageCount = { displayPages.size },
+                                    )
+                                }
 
                                 LaunchedEffect(ps) {
                                     pagerState = ps
                                 }
 
                                 LaunchedEffect(ps.currentPage) {
-                                    if (ps.currentPage != state.currentPage) {
-                                        viewModel.goToPage(ps.currentPage)
+                                    val realIndex = ps.currentPage - contentPageOffset
+                                    if (realIndex in 0 until realPageCount && realIndex != state.currentPage) {
+                                        viewModel.goToPage(realIndex)
                                     }
                                 }
 
                                 LaunchedEffect(state.currentPage) {
-                                    if (ps.currentPage != state.currentPage) {
-                                        ps.scrollToPage(state.currentPage)
+                                    val targetPagerPage = state.currentPage + contentPageOffset
+                                    if (targetPagerPage in 0 until displayPages.size && ps.currentPage != targetPagerPage) {
+                                        ps.scrollToPage(targetPagerPage)
                                     }
                                 }
 
-                                if (computedPages.isNotEmpty()) {
+                                LaunchedEffect(ps.currentPage) {
+                                    android.util.Log.d("Reader", "Pager settled: page=${ps.currentPage}, displayPages.size=${displayPages.size}, hasNext=$hasNextChapter, hasPrev=$hasPrevChapter, isLoading=${state.isLoadingContent}")
+                                    if (state.isLoadingContent) return@LaunchedEffect
+                                    val pagerIdx = ps.currentPage
+                                    if (hasPrevChapter && pagerIdx == 0) {
+                                        android.util.Log.d("Reader", ">>> PREVIOUS CHAPTER triggered")
+                                        viewModel.previousChapter()
+                                    } else if (hasNextChapter && pagerIdx == displayPages.lastIndex) {
+                                        android.util.Log.d("Reader", ">>> NEXT CHAPTER triggered")
+                                        viewModel.nextChapter()
+                                    }
+                                }
+
+                                if (displayPages.isNotEmpty()) {
                                     HorizontalPager(
                                         state = ps,
                                         modifier = Modifier.fillMaxSize(),
                                     ) { pageIndex ->
+                                        val isPrevTransition = hasPrevChapter && pageIndex == 0
+                                        val isNextTransition = hasNextChapter && pageIndex == displayPages.lastIndex
+
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
@@ -289,10 +327,57 @@ fun ReaderScreen(
                                                     })
                                                 },
                                         ) {
-                                            Text(
-                                                text = computedPages.getOrElse(pageIndex) { "" },
-                                                style = style,
-                                            )
+                                            when {
+                                                isPrevTransition -> {
+                                                    Column(
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        verticalArrangement = Arrangement.Center,
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                    ) {
+                                                        Text(
+                                                            text = "\u2190 Previous Chapter",
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            fontSize = 18.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                        )
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(
+                                                            text = "Chapter ${state.currentChapterIndex}: ${prevChapterTitle ?: ""}",
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                            fontSize = 14.sp,
+                                                            textAlign = TextAlign.Center,
+                                                        )
+                                                    }
+                                                }
+                                                isNextTransition -> {
+                                                    Column(
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        verticalArrangement = Arrangement.Center,
+                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                    ) {
+                                                        Text(
+                                                            text = "Next Chapter \u2192",
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            fontSize = 18.sp,
+                                                            fontWeight = FontWeight.Medium,
+                                                        )
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(
+                                                            text = "Chapter ${state.currentChapterIndex + 2}: ${nextChapterTitle ?: ""}",
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                            fontSize = 14.sp,
+                                                            textAlign = TextAlign.Center,
+                                                        )
+                                                    }
+                                                }
+                                                else -> {
+                                                    val contentPageIndex = pageIndex - contentPageOffset
+                                                    Text(
+                                                        text = computedPages.getOrElse(contentPageIndex) { "" },
+                                                        style = style,
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
