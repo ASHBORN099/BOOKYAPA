@@ -9,6 +9,7 @@ data class SourceConfig(
     val searchResultTitle: String = "",
     val searchResultLink: String = "",
     val searchResultCover: String = "",
+    val searchResultAuthor: String = "",
     val bookTitle: String = "",
     val bookAuthor: String = "",
     val bookCover: String = "",

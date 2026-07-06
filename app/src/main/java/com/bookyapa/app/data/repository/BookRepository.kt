@@ -14,6 +14,9 @@ import com.bookyapa.app.data.model.SearchResult
 import com.bookyapa.app.data.model.SourceConfig
 import com.bookyapa.app.data.remote.RemoteDataSource
 import com.bookyapa.app.domain.parser.HtmlParser
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -46,7 +49,7 @@ class BookRepository @Inject constructor(
         val fullUrl = if (searchUrl.startsWith("http")) searchUrl else "${source.baseUrl.trimEnd('/')}$searchUrl"
 
         return remoteDataSource.fetchHtml(fullUrl).mapCatching { html ->
-            val results = htmlParser.searchBooks(html, source.baseUrl, config)
+            val results = htmlParser.searchBooks(html, source.baseUrl, config, source.name)
             if (results.isEmpty()) {
                 val hasSelectors = config.searchResultContainer.isNotBlank() ||
                     config.searchResultTitle.isNotBlank()
@@ -56,6 +59,29 @@ class BookRepository @Inject constructor(
             }
             results
         }
+    }
+
+    suspend fun searchAllSources(query: String): Map<String, Result<List<SearchResult>>> {
+        val sources = sourceRepository.getEnabledSourcesOnce()
+        return coroutineScope {
+            sources.map { source ->
+                async {
+                    if (isSearchBlocked(source.id, source.name)) {
+                        source.name to Result.failure(Exception("Search blocked by Cloudflare — use the Explore tab instead"))
+                    } else {
+                        val result = searchBooks(query, source.id)
+                        source.name to result
+                    }
+                }
+            }.awaitAll().toMap()
+        }
+    }
+
+    companion object {
+        private val SEARCH_BLOCKED_SOURCES = setOf("scribblehub")
+
+        fun isSearchBlocked(sourceId: Long, sourceName: String): Boolean =
+            SEARCH_BLOCKED_SOURCES.any { sourceName.lowercase().contains(it) }
     }
 
     suspend fun fetchExploreBooks(sourceId: Long): Result<List<SearchResult>> {

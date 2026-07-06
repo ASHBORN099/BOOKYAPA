@@ -1,10 +1,8 @@
 package com.bookyapa.app.ui.search
 
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -30,9 +29,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,8 +37,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,9 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import com.bookyapa.app.ui.theme.AppColors
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,8 +56,8 @@ import coil.compose.AsyncImage
 import com.bookyapa.app.data.model.SearchResult
 import com.bookyapa.app.navigation.Screen
 import com.bookyapa.app.network.CloudflareVerifyActivity
+import com.bookyapa.app.ui.theme.AppColors
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     navController: NavController,
@@ -127,32 +120,6 @@ fun SearchScreen(
                 ),
             )
 
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(state.sources, key = { it.id }) { source ->
-                    FilterChip(
-                        selected = state.selectedSourceId == source.id,
-                        onClick = { viewModel.selectSource(source.id) },
-                        label = {
-                            Text(
-                                text = source.name,
-                                fontSize = 13.sp,
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF004040),
-                            selectedLabelColor = Color(0xFF008080),
-                            containerColor = Color(0xFF2D2D2D),
-                            labelColor = Color(0xFFAAAAAA),
-                        ),
-                    )
-                }
-            }
-
             when {
                 state.isLoading -> {
                     Box(
@@ -163,49 +130,15 @@ fun SearchScreen(
                     }
                 }
 
-                state.error != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = state.error ?: "Unknown error",
-                            color = Color(0xFFCF6679),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-
                 state.sources.isEmpty() && state.query.isNotBlank() -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "No sources available",
-                                color = AppColors.bodyText,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Text(
-                                text = "Add a source in the Sources tab first",
-                                color = AppColors.bodyText,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                            Text("No sources available", color = AppColors.bodyText, style = MaterialTheme.typography.bodyLarge)
+                            Text("Add a source in the Sources tab first", color = AppColors.bodyText, style = MaterialTheme.typography.bodySmall)
                         }
-                    }
-                }
-
-                state.query.isNotBlank() && state.selectedSourceId == null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Select a source above to search",
-                            color = AppColors.bodyText,
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
                     }
                 }
 
@@ -214,50 +147,99 @@ fun SearchScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = "Type to search",
-                            color = AppColors.bodyText,
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
+                        Text("Type to search", color = AppColors.bodyText, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
 
-                state.results.isEmpty() -> {
+                state.sourceResults.isEmpty() && !state.isLoading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "No results found",
-                                color = AppColors.bodyText,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Text(
-                                text = "The source selectors may need updating",
-                                color = AppColors.bodyText,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
+                        Text("No results found", color = AppColors.bodyText, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
 
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 8.dp),
                     ) {
-                        items(state.results, key = { it.url }) { result ->
-                            SearchResultItem(
-                                result = result,
-                                onClick = {
-                                    val sourceId = state.selectedSourceId ?: return@SearchResultItem
-                                    navController.navigate(
-                                        Screen.BookDetail.createRoute(sourceId, result.url)
+                        state.sourceResults.forEach { sourceResults ->
+                            if (sourceResults.results.isNotEmpty()) {
+                                item(key = "header_${sourceResults.sourceName}") {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = sourceResults.sourceName,
+                                            color = Color(0xFF008080),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "(${sourceResults.results.size})",
+                                            color = AppColors.bodyText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+                                item(key = "cards_${sourceResults.sourceName}") {
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 16.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    ) {
+                                        items(sourceResults.results, key = { it.url }) { result ->
+                                            HorizontalBookCard(
+                                                result = result,
+                                                onClick = {
+                                                    val source = state.sources.find { it.name == sourceResults.sourceName }
+                                                    if (source != null) {
+                                                        navController.navigate(
+                                                            Screen.BookDetail.createRoute(source.id, result.url)
+                                                        )
+                                                    }
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                                item(key = "spacer_${sourceResults.sourceName}") {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+                            }
+                            if (sourceResults.isLoading) {
+                                item(key = "loading_${sourceResults.sourceName}") {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            color = Color(0xFF008080),
+                                            strokeWidth = 2.dp,
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Loading ${sourceResults.sourceName}...", color = AppColors.bodyText, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                            if (sourceResults.error != null && sourceResults.results.isEmpty()) {
+                                item(key = "error_${sourceResults.sourceName}") {
+                                    Text(
+                                        text = "${sourceResults.sourceName}: ${sourceResults.error}",
+                                        color = Color(0xFFCF6679),
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                                     )
-                                },
-                            )
+                                }
+                            }
                         }
                     }
                 }
@@ -302,41 +284,45 @@ fun SearchScreen(
 }
 
 @Composable
-private fun SearchResultItem(
+private fun HorizontalBookCard(
     result: SearchResult,
     onClick: () -> Unit,
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.width(140.dp),
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
         shape = RoundedCornerShape(12.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
+        Column {
             AsyncImage(
                 model = result.coverUrl,
                 contentDescription = result.title,
                 modifier = Modifier
-                    .size(width = 72.dp, height = 108.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop,
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
+                contentScale = ContentScale.Fit,
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Top,
-            ) {
+            Column(modifier = Modifier.padding(10.dp)) {
                 Text(
                     text = result.title,
                     color = Color(0xFFE0E0E0),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    maxLines = 3,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (!result.author.isNullOrBlank()) {
+                    Text(
+                        text = result.author,
+                        color = AppColors.bodyText,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
     }

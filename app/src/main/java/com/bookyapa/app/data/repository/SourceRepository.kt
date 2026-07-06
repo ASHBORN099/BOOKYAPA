@@ -18,6 +18,8 @@ class SourceRepository @Inject constructor(
 
     fun getEnabledSources(): Flow<List<SourceEntity>> = sourceDao.getEnabledSources()
 
+    suspend fun getEnabledSourcesOnce(): List<SourceEntity> = sourceDao.getEnabledSourcesOnce()
+
     suspend fun getAllSourcesOnce(): List<SourceEntity> = sourceDao.getAllSourcesList()
 
     suspend fun getSourceById(id: Long): SourceEntity? = sourceDao.getSourceById(id)

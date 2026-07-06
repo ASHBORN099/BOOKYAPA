@@ -59,33 +59,32 @@ class CloudflareInterceptor(
             cookieJar.remove(request.url, listOf(CF_CLEARANCE_COOKIE))
         }
 
-        val isTurnstile = detectTurnstile(body)
-
-        if (isTurnstile) {
-            Log.d(TAG, "Turnstile detected — throwing for Activity resolution")
-            throw IOException(
-                "Cloudflare Turnstile requires verification",
-                TurnstileBypassException(request.url.toString())
-            )
-        }
-
-        Log.d(TAG, "IUAM challenge — attempting background WebView bypass")
-        resolveWithBackgroundWebView(request)
-
-        return chain.proceed(request)
+        Log.d(TAG, "Cloudflare challenge detected — throwing for user resolution")
+        throw IOException(
+            "Cloudflare verification required",
+            TurnstileBypassException(request.url.toString())
+        )
     }
 
     private fun isCloudflareChallenge(response: Response): Boolean {
         if (response.code !in CF_ERROR_CODES) return false
-        val server = response.header("Server")?.lowercase() ?: return false
-        if (CF_SERVERS.none { server.contains(it) }) return false
 
         return try {
             val body = response.peekBody(Long.MAX_VALUE).string()
             val doc = Jsoup.parse(body, response.request.url.toString())
-            doc.getElementById("challenge-error-title") != null ||
+
+            val server = response.header("Server")?.lowercase() ?: ""
+            val hasCloudflareHeader = CF_SERVERS.any { server.contains(it) }
+
+            val hasChallengeHtml = doc.getElementById("challenge-error-title") != null ||
                 doc.getElementById("challenge-error-text") != null ||
-                doc.getElementById("challenge-running") != null
+                doc.getElementById("challenge-running") != null ||
+                doc.selectFirst("[class*=cf-turnstile]") != null ||
+                doc.selectFirst("script[src*=challenges.cloudflare.com]") != null
+
+            val isShortChallengePage = body.length < 10_000
+
+            hasCloudflareHeader || hasChallengeHtml || isShortChallengePage
         } catch (_: Exception) {
             true
         }

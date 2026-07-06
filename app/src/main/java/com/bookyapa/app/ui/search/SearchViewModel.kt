@@ -23,11 +23,17 @@ class SearchViewModel @Inject constructor(
     private val sourceRepository: SourceRepository,
 ) : ViewModel() {
 
+    data class SourceResults(
+        val sourceName: String,
+        val results: List<SearchResult>,
+        val error: String? = null,
+        val isLoading: Boolean = true,
+    )
+
     data class UiState(
         val query: String = "",
-        val selectedSourceId: Long? = null,
         val sources: List<SourceEntity> = emptyList(),
-        val results: List<SearchResult> = emptyList(),
+        val sourceResults: List<SourceResults> = emptyList(),
         val isLoading: Boolean = false,
         val error: String? = null,
         val turnstileUrl: String? = null,
@@ -37,6 +43,7 @@ class SearchViewModel @Inject constructor(
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private var searchJob: Job? = null
+    private val searchCache = HashMap<String, List<SourceResults>>()
 
     init {
         viewModelScope.launch {
@@ -50,35 +57,18 @@ class SearchViewModel @Inject constructor(
         _state.update { it.copy(query = query) }
         searchJob?.cancel()
         if (query.isBlank()) {
-            _state.update { it.copy(results = emptyList(), isLoading = false, error = null, turnstileUrl = null) }
-            return
-        }
-        val sourceId = _state.value.selectedSourceId
-        if (sourceId == null) {
-            _state.update { it.copy(error = null, turnstileUrl = null) }
+            _state.update { it.copy(sourceResults = emptyList(), isLoading = false, error = null, turnstileUrl = null) }
             return
         }
         searchJob = viewModelScope.launch {
             delay(500)
-            performSearch(query, sourceId)
-        }
-    }
-
-    fun selectSource(sourceId: Long) {
-        _state.update { it.copy(selectedSourceId = sourceId, error = null, turnstileUrl = null) }
-        val query = _state.value.query
-        if (query.isNotBlank()) {
-            searchJob?.cancel()
-            searchJob = viewModelScope.launch {
-                delay(200)
-                performSearch(query, sourceId)
-            }
+            performSearch(query)
         }
     }
 
     fun clearResults() {
         searchJob?.cancel()
-        _state.update { it.copy(query = "", results = emptyList(), isLoading = false, error = null, turnstileUrl = null) }
+        _state.update { it.copy(query = "", sourceResults = emptyList(), isLoading = false, error = null, turnstileUrl = null) }
     }
 
     fun clearTurnstileDialog() {
@@ -87,37 +77,50 @@ class SearchViewModel @Inject constructor(
 
     fun retryAfterTurnstile() {
         val query = _state.value.query
-        val sourceId = _state.value.selectedSourceId ?: return
         _state.update { it.copy(turnstileUrl = null) }
         if (query.isNotBlank()) {
             searchJob?.cancel()
             searchJob = viewModelScope.launch {
-                performSearch(query, sourceId)
+                performSearch(query)
             }
         }
     }
 
-    private suspend fun performSearch(query: String, sourceId: Long) {
-        _state.update { it.copy(isLoading = true, error = null, turnstileUrl = null) }
-        bookRepository.searchBooks(query, sourceId)
-            .onSuccess { results ->
-                _state.update { it.copy(results = results, isLoading = false) }
+    private suspend fun performSearch(query: String) {
+        val cached = searchCache[query.lowercase()]
+        if (cached != null) {
+            _state.update {
+                it.copy(sourceResults = cached, isLoading = false, error = null)
             }
-            .onFailure { e ->
-                val turnstile = findTurnstileException(e)
-                if (turnstile != null) {
-                    _state.update {
-                        it.copy(
-                            results = emptyList(),
-                            isLoading = false,
-                            error = "Cloudflare verification required",
-                            turnstileUrl = turnstile.url,
-                        )
+            return
+        }
+
+        _state.update { it.copy(isLoading = true, error = null, turnstileUrl = null, sourceResults = emptyList()) }
+
+        val allResults = bookRepository.searchAllSources(query)
+
+        val sourceResultsList = allResults.map { (sourceName, result) ->
+            result.fold(
+                onSuccess = { results ->
+                    SourceResults(sourceName = sourceName, results = results, isLoading = false)
+                },
+                onFailure = { e ->
+                    val turnstile = findTurnstileException(e)
+                    if (turnstile != null) {
+                        _state.update { it.copy(turnstileUrl = turnstile.url) }
+                        SourceResults(sourceName = sourceName, results = emptyList(), error = "Cloudflare verification required", isLoading = false)
+                    } else {
+                        SourceResults(sourceName = sourceName, results = emptyList(), error = e.message, isLoading = false)
                     }
-                } else {
-                    _state.update { it.copy(results = emptyList(), isLoading = false, error = e.message) }
                 }
-            }
+            )
+        }
+
+        searchCache[query.lowercase()] = sourceResultsList
+
+        _state.update {
+            it.copy(sourceResults = sourceResultsList, isLoading = false)
+        }
     }
 }
 

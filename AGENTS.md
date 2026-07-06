@@ -597,3 +597,49 @@ Book reader app for Android (Kotlin/Compose). Migrated from React Native.
 
 ### Debug logging
 - Added `Log.d("Reader", ...)` to transition detection in `ReaderScreen.kt` — use `adb logcat -s Reader` to verify chapter swiping on device
+
+## Changes (Jul 6 session 5) — Search overhaul + Cloudflare detection fix
+
+### Multi-source search
+- Search now queries ALL enabled sources in parallel (RoyalRoad, ScribbleHub, Gutenberg)
+- Results grouped by source name with section headers (e.g. "RoyalRoad (5)")
+- In-memory search cache avoids re-fetching for repeated queries
+- Per-source loading spinners and error messages
+
+### Horizontal book cards UI
+- Search results displayed as horizontal scrollable book cards per source
+- Each card shows cover image (140×180dp), title (max 2 lines), author (1 line, dimmed)
+- Removed source filter chips — results show all sources at once
+
+### Author extraction in search results
+- Added `searchResultAuthor` CSS selector field to `SourceConfig`
+- Added `author` and `sourceName` fields to `SearchResult` model
+- RoyalRoad: `span.author`, ScribbleHub: `span.auth_name_fic`, Gutenberg: `span.subtitle`
+- **Note**: Requires `pm clear` + re-add sources for new config to take effect
+
+### ScribbleHub search blocked by Cloudflare
+- ScribbleHub search endpoint (`/?s=...`) has stricter Cloudflare protection than explore
+- Cloudflare detects and blocks the embedded WebView even with package name spoofing
+- **Workaround**: ScribbleHub excluded from search with message "Search blocked by Cloudflare — use the Explore tab instead"
+- Explore/browse/reader still work fine for ScribbleHub
+- **TODO**: Fix Cloudflare bypass for ScribbleHub search in future session
+
+### CloudflareInterceptor detection fix
+- `isCloudflareChallenge()` was gated on `Server: cloudflare` header — if missing, HTML markers were never checked
+- Restructured to three OR conditions: server header, HTML challenge markers, or short body heuristic
+- Now all Cloudflare challenges immediately throw `TurnstileBypassException` (removed broken IUAM background auto-solve)
+- **Result**: Turnstile dialog now appears for Cloudflare-blocked sites instead of generic 403 error
+
+### Files changed
+| File | Change |
+|------|--------|
+| `SearchResult.kt` | Added `author`, `sourceName` fields |
+| `SourceConfig.kt` | Added `searchResultAuthor` field |
+| `sources_catalog.json` | Added author CSS selectors for all 3 sources |
+| `HtmlParser.kt` | Extract author in `searchBooks()`, added `sourceName` param |
+| `SourceDao.kt` | Added `getEnabledSourcesOnce()` query |
+| `SourceRepository.kt` | Added `getEnabledSourcesOnce()` method |
+| `BookRepository.kt` | Added `searchAllSources()`, `isSearchBlocked()`, `SEARCH_BLOCKED_SOURCES` |
+| `SearchViewModel.kt` | Multi-source fan-out, in-memory cache, removed source filter state |
+| `SearchScreen.kt` | Horizontal book cards, removed source chips |
+| `CloudflareInterceptor.kt` | Restructured `isCloudflareChallenge()`, removed IUAM auto-solve |

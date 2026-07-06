@@ -14,7 +14,7 @@ import javax.inject.Singleton
 @Singleton
 class HtmlParser @Inject constructor() {
 
-    fun searchBooks(html: String, baseUrl: String, config: SourceConfig): List<SearchResult> {
+    fun searchBooks(html: String, baseUrl: String, config: SourceConfig, sourceName: String = ""): List<SearchResult> {
         val doc = Jsoup.parse(html)
         val results = mutableListOf<SearchResult>()
 
@@ -30,6 +30,9 @@ class HtmlParser @Inject constructor() {
             val coverEl = if (config.searchResultCover.isNotBlank()) {
                 container.selectFirst(config.searchResultCover)
             } else null
+            val authorEl = if (config.searchResultAuthor.isNotBlank()) {
+                selectFirstScoped(container, config.searchResultAuthor)
+            } else null
 
             val title = titleEl?.text()?.trim()
             if (title.isNullOrBlank()) continue
@@ -38,8 +41,9 @@ class HtmlParser @Inject constructor() {
             val url = resolveUrl(href, baseUrl)
             val coverUrl = coverEl?.let { resolveUrl(it.attr("src"), baseUrl) }
                 ?.replace(".cover.small.jpg", ".cover.medium.jpg")
+            val author = authorEl?.text()?.trim()
 
-            results.add(SearchResult(title = title, url = url, coverUrl = coverUrl))
+            results.add(SearchResult(title = title, url = url, coverUrl = coverUrl, author = author, sourceName = sourceName))
         }
 
         return results

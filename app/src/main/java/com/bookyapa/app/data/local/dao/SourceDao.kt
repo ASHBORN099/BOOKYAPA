@@ -18,6 +18,9 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE enabled = 1 ORDER BY name ASC")
     fun getEnabledSources(): Flow<List<SourceEntity>>
 
+    @Query("SELECT * FROM sources WHERE enabled = 1 ORDER BY name ASC")
+    suspend fun getEnabledSourcesOnce(): List<SourceEntity>
+
     @Query("SELECT * FROM sources")
     suspend fun getAllSourcesList(): List<SourceEntity>
 
