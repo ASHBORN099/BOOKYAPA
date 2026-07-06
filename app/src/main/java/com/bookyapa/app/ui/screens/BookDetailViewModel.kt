@@ -48,7 +48,7 @@ class BookDetailViewModel @Inject constructor(
         val addedBookId: Long? = null,
         val bookStatus: com.bookyapa.app.data.model.BookStatus? = null,
         val lastChapterOrder: Int? = null,
-        val chaptersReversed: Boolean = false,
+        val chaptersReversed: Boolean = true,
         val isRemovedFromLibrary: Boolean = false,
         val turnstileUrl: String? = null,
     )
@@ -81,7 +81,7 @@ class BookDetailViewModel @Inject constructor(
                     author = book.author,
                     coverUrl = book.coverUrl,
                     description = book.description,
-                    chapters = chapters.map { ch -> DisplayChapter(ch.title, ch.order, ch.isRead, ch.url ?: "") },
+                    chapters = chapters.map { ch -> DisplayChapter(ch.title, ch.order, ch.isRead, ch.url ?: "") }.reversed(),
                     bookStatus = book.status,
                     lastChapterOrder = book.lastChapterOrder,
                 )

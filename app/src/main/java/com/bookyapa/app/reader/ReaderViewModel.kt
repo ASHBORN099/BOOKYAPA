@@ -181,7 +181,7 @@ class ReaderViewModel @Inject constructor(
                 bookRepository.saveChapterScrollPosition(currentChapter.id, currentState.currentPage)
             }
         }
-        _state.update { it.copy(currentChapterIndex = index) }
+        _state.update { it.copy(currentChapterIndex = index, currentPage = 0) }
         loadCurrentChapterContent()
     }
 
